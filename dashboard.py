@@ -60,20 +60,24 @@ def export_orders():
         headers={"Content-Disposition":"attachment;filename=orders.csv"})
 
 # ✅ NEW: UPDATE STATUS (FIXES YOUR ERROR)
+import json
+
 def update_status(req):
     if not session.get("admin"):
         return redirect("/login")
 
     oid = req.args.get("id")
-    status = req.args.get("status")
+    new_status = req.args.get("status")
 
     orders = load_orders()
 
     for o in orders:
         if o["id"] == oid:
-            o["status"] = status
+            o["status"] = new_status
 
-    save_all_orders(orders)
+    # ✅ SAVE AS JSON (VERY IMPORTANT)
+    with open("orders.json", "w") as f:
+        json.dump(orders, f, indent=4)
 
     return redirect("/admin")
 
