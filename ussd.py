@@ -47,6 +47,7 @@ NETWORKS = {
     "3": ("AirtelTigo", AIRTEL_GROUPS)
 }
 
+
 # ------------------ MAIN FUNCTION ------------------
 
 def process_ussd(text, msisdn):
@@ -58,31 +59,40 @@ def process_ussd(text, msisdn):
 
     # HELP
     if text == "2":
-        return "END Call or WhatsApp 0558861119 / 0501247889"
+        return "END For any inquiries Call or WhatsApp 0558861119 / 0501247889"
 
     # GLOBAL BACK
     if parts and parts[-1] == "0":
-        return "CON Select Network\n1. MTN\n2. Telecel\n3. AirtelTigo"
+        return "CON Welcome to isCheapData\n1. Buy Data\n2. Help Center"
 
     # ------------------ BUY FLOW ------------------
 
     if parts[0] == "1":
 
-        # NETWORK
+        # STEP 1: SELECT NETWORK
         if len(parts) == 1:
             return "CON Select Network\n1. MTN\n2. Telecel\n3. AirtelTigo"
 
         net_key = parts[1]
 
+        # ✅ HANDLE INVALID NETWORK + RETRY
         if net_key not in NETWORKS:
-            return "END Invalid network"
+            # if user presses retry
+            if len(parts) == 3 and parts[2] == "1":
+                return "CON Select Network\n1. MTN\n2. Telecel\n3. AirtelTigo"
+
+            # if user presses back
+            if len(parts) == 3 and parts[2] == "0":
+                return "CON Welcome to isCheapData\n1. Buy Data\n2. Help Center"
+
+            return "CON Invalid network\n1. Try again\n0. Back"
 
         net_name, groups = NETWORKS[net_key]
 
-        # CATEGORY
+        # STEP 2: SELECT CATEGORY
         if len(parts) == 2:
             msg = f"CON {net_name} Categories\n"
-            for k,(name,_) in groups.items():
+            for k, (name, _) in groups.items():
                 msg += f"{k}. {name}\n"
             return msg + "0. Back"
 
@@ -93,14 +103,14 @@ def process_ussd(text, msisdn):
 
         group_name, bundles = groups[group_key]
 
-        # SHOW BUNDLES
+        # STEP 3: SHOW BUNDLES
         if len(parts) == 3:
             msg = f"CON {net_name} {group_name}\n"
-            for i,(d,p) in enumerate(bundles,1):
+            for i, (d, p) in enumerate(bundles, 1):
                 msg += f"{i}. {d} - {p}\n"
             return msg + "0. Back"
 
-        # SELECT BUNDLE
+        # STEP 4: SELECT BUNDLE
         if len(parts) == 4:
             try:
                 idx = int(parts[3]) - 1
@@ -110,41 +120,37 @@ def process_ussd(text, msisdn):
 
             return "CON Buy for:\n1. My Number\n2. Other Number\n0. Back"
 
-        # BUY FOR
+        # STEP 5: BUY FOR
         if len(parts) == 5:
 
-            # MY NUMBER
             if parts[4] == "1":
                 phone = norm(msisdn)
+
+                if not valid(phone):
+                    return "END Invalid phone number"
 
                 if detect(phone) != net_name:
                     return f"CON Your number is {detect(phone)}, not {net_name}\n0. Back"
 
                 return "CON Confirm purchase?\n1. Yes\n2. No\n0. Back"
 
-            # OTHER NUMBER
             if parts[4] == "2":
                 return "CON Enter phone number\n0. Back"
 
-        # OTHER NUMBER INPUT + RETRY
-        if len(parts) >= 6 and parts[4] == "2" and parts[-1] not in ["1","2"]:
+        # STEP 6: ENTER NUMBER
+        if len(parts) >= 6 and parts[4] == "2" and parts[-1] not in ["1", "2"]:
 
-            attempts = len(parts) - 5
-            phone = parts[-1]
+            phone = norm(parts[-1])
 
-            if not phone.isdigit() or not valid(phone):
-                if attempts >= 3:
-                    return "END Too many invalid attempts"
+            if not valid(phone):
                 return "CON Invalid number\nTry again:"
 
             if detect(phone) != net_name:
-                if attempts >= 3:
-                    return "END Too many invalid attempts"
                 return f"CON Wrong network ({detect(phone)})\nTry again:"
 
             return "CON Confirm purchase?\n1. Yes\n2. No\n0. Back"
 
-        # CONFIRM
+        # STEP 7: CONFIRM
         if (parts[4] == "1" and len(parts) == 6) or (parts[4] == "2" and len(parts) >= 7):
 
             confirm = parts[-1]
@@ -159,9 +165,15 @@ def process_ussd(text, msisdn):
                 except:
                     return "END Invalid selection"
 
-                phone = norm(msisdn) if parts[4] == "1" else parts[-2]
+                phone = norm(msisdn) if parts[4] == "1" else norm(parts[-2])
 
-                # SAVE ORDER (manual mode for now)
+                # FINAL SECURITY CHECK
+                if not valid(phone):
+                    return "END Invalid phone number"
+
+                if detect(phone) != net_name:
+                    return f"END Wrong network ({detect(phone)})"
+
                 oid = save(net_name, data, price, phone, "PENDING")
 
                 return (
