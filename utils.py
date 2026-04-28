@@ -42,30 +42,60 @@ def gen_id():
 
 
 def norm(p):
+    p = p.strip()
+
     if p.startswith("+233"):
-        return "0" + p[4:]
-    if p.startswith("233"):
-        return "0" + p[3:]
+        p = "0" + p[4:]
+    elif p.startswith("233"):
+        p = "0" + p[3:]
+
     return p
 
 
+# REAL GHANA PREFIXES
+MTN_PREFIXES = ["024", "025", "053", "054", "055", "059"]
+TELECEL_PREFIXES = ["020", "050"]
+AIRTEL_PREFIXES = ["026", "027", "056", "057"]
+
+
 def valid(p):
-    return p.isdigit() and len(p) == 10 and p.startswith("0")
+    p = norm(p)
+
+    if not p.isdigit():
+        return False
+
+    if len(p) != 10:
+        return False
+
+    if not p.startswith("0"):
+        return False
+
+    prefix = p[:3]
+
+    if prefix in MTN_PREFIXES + TELECEL_PREFIXES + AIRTEL_PREFIXES:
+        return True
+
+    return False
 
 
 def detect(p):
-    x = p[:3]
-    if x in ["024", "054", "055", "059"]:
+    p = norm(p)
+    prefix = p[:3]
+
+    if prefix in MTN_PREFIXES:
         return "MTN"
-    if x in ["020", "050"]:
+
+    if prefix in TELECEL_PREFIXES:
         return "Telecel"
-    if x in ["026", "027", "057"]:
+
+    if prefix in AIRTEL_PREFIXES:
         return "AirtelTigo"
+
     return "Unknown"
 
 
 # ======================
-# ORDER STORAGE (JSON)
+# ORDER STORAGE
 # ======================
 def load_orders():
     if not os.path.exists(ORDERS_FILE):
@@ -118,10 +148,7 @@ def process_order(phone, gig, bundle_name, price):
 
     response = send_data(phone, gig)
 
-    if response.get("code") == 200:
-        status = "SUCCESS"
-    else:
-        status = "FAILED"
+    status = "SUCCESS" if response.get("code") == 200 else "FAILED"
 
     order_id = save(network, bundle_name, price, phone, status)
 
